@@ -9,6 +9,9 @@ from kugou_signer.config.store import AccountStore
 from kugou_signer.kugou.client import KugouClient
 from kugou_signer.models import Account, AppConfig, ExecutionSettings, SignInResult
 
+VIP_CLAIM_EXHAUSTED_CODES = {30002}
+VIP_CLAIM_STOP_CODES = {30000}
+
 
 class SignInService:
     def __init__(
@@ -113,9 +116,19 @@ class SignInService:
                         emit(f"{account.nickname} 广告领取间隔等待 {delay_seconds} 秒")
                         self.sleep(delay_seconds)
                 continue
-            if vip_response.get("error_code") == 30002:
+
+            error_code = vip_response.get("error_code")
+            if error_code in VIP_CLAIM_EXHAUSTED_CODES:
                 messages.append("今日广告领取次数已用完")
                 break
+            if error_code in VIP_CLAIM_STOP_CODES:
+                if vip_claim_count > 0:
+                    messages.append("广告领取提示过于频繁，视为今日已领完，停止重试")
+                    break
+                vip_success = False
+                messages.append("广告领取过于频繁，本轮停止重试")
+                break
+
             vip_success = False
             messages.append(f"广告领取失败: {vip_response}")
             break

@@ -33,6 +33,15 @@ class FakeClient:
         return {"status": 1, "data": {"busi_vip": [{"vip_end_time": "2099-12-31"}]}}
 
 
+class FakeFrequentClient(FakeClient):
+    def claim_vip(self, account: Account) -> dict:
+        current = self._claim_counts.get(account.user_id, 0)
+        self._claim_counts[account.user_id] = current + 1
+        if current == 0:
+            return {"status": 1}
+        return {"status": 0, "error_code": 30000}
+
+
 class SignInServiceTests(unittest.TestCase):
     def test_run_once_applies_account_and_ad_delays(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -68,6 +77,35 @@ class SignInServiceTests(unittest.TestCase):
             self.assertEqual(len(results), 2)
             self.assertTrue(any("等待下一个账号 2 秒" in item for item in messages))
             self.assertTrue(any("广告领取间隔等待 4 秒" in item for item in messages))
+
+    def test_claim_vip_stops_when_frequency_limit_hits_after_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = RepoPaths.resolve(Path(temp_dir))
+            store = AccountStore(paths)
+            store.save([Account(user_id="10001", token="token-1", nickname="Miku喵")])
+            sleep_calls: list[float] = []
+            messages: list[str] = []
+            service = SignInService(
+                store,
+                FakeFrequentClient(),
+                config=AppConfig(
+                    timezone="Asia/Shanghai",
+                    schedule=ScheduleSettings(time="00:01"),
+                    execution=ExecutionSettings(
+                        vip_ad_gap_min_seconds=4,
+                        vip_ad_gap_max_seconds=4,
+                    ),
+                ),
+                sleep=sleep_calls.append,
+            )
+
+            results = service.run_once(datetime(2026, 3, 25, 0, 30, 10), emit=messages.append)
+
+            self.assertEqual(sleep_calls, [4])
+            self.assertEqual(len(results), 1)
+            self.assertTrue(results[0].success)
+            self.assertEqual(results[0].vip_claim_count, 1)
+            self.assertTrue(any("广告领取提示过于频繁，视为今日已领完，停止重试" in item for item in results[0].messages))
 
 
 if __name__ == "__main__":
