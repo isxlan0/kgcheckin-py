@@ -16,6 +16,7 @@ from textual.widgets.option_list import Option
 
 from kugou_signer.scheduler.commands import CommandResult, CommandSpec, RuntimeCommandHandler
 from kugou_signer.scheduler.engine import SchedulerController
+from kugou_signer.tui.log_buffer import ThreadSafeLogBuffer
 
 
 class CommandInput(Input):
@@ -527,6 +528,7 @@ class SchedulerTUIApp(App[None]):
     def __init__(self, controller: SchedulerController) -> None:
         super().__init__()
         self.controller = controller
+        self._pending_logs = ThreadSafeLogBuffer()
         self._run_thread_active = False
         self._run_thread_lock = threading.Lock()
 
@@ -539,6 +541,7 @@ class SchedulerTUIApp(App[None]):
         self.write_log(self.controller.describe_next_run())
         self.write_log("命令栏已启用：按 / 打开，↑/↓ 选择，Tab 补全，Esc 取消。")
         self._refresh_status()
+        self.set_interval(0.1, self._drain_pending_logs)
         self.set_interval(1.0, self._refresh_status)
 
     def action_open_commands(self) -> None:
@@ -548,6 +551,7 @@ class SchedulerTUIApp(App[None]):
         )
 
     def action_run_now(self) -> None:
+        self.write_log("收到立即签到请求。")
         self._start_sign_in(manual=True)
 
     def action_quit(self) -> None:
@@ -560,10 +564,11 @@ class SchedulerTUIApp(App[None]):
             log.write(line)
 
     def _thread_emit(self, message: str) -> None:
-        try:
-            self.call_from_thread(self.write_log, message)
-        except Exception:
-            pass
+        self._pending_logs.push(message)
+
+    def _drain_pending_logs(self) -> None:
+        for message in self._pending_logs.drain():
+            self.write_log(message)
 
     def _refresh_status(self) -> None:
         snapshot = self.controller.status_snapshot()
@@ -580,6 +585,8 @@ class SchedulerTUIApp(App[None]):
         self._execute_command(normalized)
 
     def _execute_command(self, command_text: str) -> None:
+        self.write_log(f"执行命令: {command_text}")
+
         def worker() -> CommandResult:
             return self.controller.command_handler.handle(command_text, emit=self._thread_emit)
 

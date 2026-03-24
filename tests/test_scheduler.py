@@ -9,6 +9,7 @@ from kugou_signer.models import Account
 from kugou_signer.models import AppConfig, ScheduleSettings
 from kugou_signer.scheduler.engine import SchedulerController, compute_next_run, format_seconds
 from kugou_signer.timezones import resolve_timezone
+from kugou_signer.tui.log_buffer import ThreadSafeLogBuffer
 
 
 class DummyRandom:
@@ -64,6 +65,15 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(snapshot.total_accounts, 2)
             self.assertIn("账号 1/2", status_line)
             self.assertIn("倒计时", status_line)
+
+    def test_thread_safe_log_buffer_drains_in_order(self) -> None:
+        buffer = ThreadSafeLogBuffer()
+
+        buffer.push("第一条日志")
+        buffer.push("第二条日志")
+
+        self.assertEqual(buffer.drain(), ["第一条日志", "第二条日志"])
+        self.assertEqual(buffer.drain(), [])
 
 
 if __name__ == "__main__":
