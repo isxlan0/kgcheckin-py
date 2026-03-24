@@ -12,8 +12,8 @@ build/
 dist/
 *.egg-info/
 
-config/
-data/
+/config/
+/data/
 
 .pytest_cache/
 .coverage
