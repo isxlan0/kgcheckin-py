@@ -538,6 +538,7 @@ class SchedulerTUIApp(App[None]):
         yield Footer(show_command_palette=False)
 
     def on_mount(self) -> None:
+        self.write_log("守护任务已启动，正在等待计划任务触发。")
         self.write_log(self.controller.describe_next_run())
         self.write_log("命令栏已启用：按 / 打开，↑/↓ 选择，Tab 补全，Esc 取消。")
         self._refresh_status()
@@ -574,6 +575,9 @@ class SchedulerTUIApp(App[None]):
         snapshot = self.controller.status_snapshot()
         self.query_one("#status-bar", Static).update(self.controller.format_status(snapshot))
         if snapshot.remaining_seconds <= 0 and not snapshot.running:
+            self.write_log(
+                f"检测到已到执行时间，准备开始自动签到：{snapshot.scheduled.run_at.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+            )
             self._start_sign_in(manual=False)
 
     def _handle_command_result(self, command_text: str | None) -> None:
@@ -803,6 +807,8 @@ class SchedulerTUIApp(App[None]):
             if self._run_thread_active:
                 if manual:
                     self.write_log("已有任务执行中，请稍候。")
+                else:
+                    self.write_log("检测到计划任务到点，但当前已有签到任务执行中，本次不重复启动。")
                 return
             self._run_thread_active = True
 
@@ -811,7 +817,12 @@ class SchedulerTUIApp(App[None]):
                 return self.controller.run_now(emit=self._thread_emit)
             return self.controller.run_due(emit=self._thread_emit)
 
-        def finalize(_: bool) -> None:
+        def finalize(result: bool) -> None:
+            if not result:
+                if manual:
+                    self.write_log("立即签到未成功启动，请检查当前状态后重试。")
+                else:
+                    self.write_log("本次自动签到未成功启动，将继续等待下一次状态刷新。")
             with self._run_thread_lock:
                 self._run_thread_active = False
             self._refresh_status()
