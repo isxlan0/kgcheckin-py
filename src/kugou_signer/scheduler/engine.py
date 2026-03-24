@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 import threading
 import time
@@ -112,7 +113,7 @@ class SchedulerController:
         config, scheduled, running = self._state()
         timezone = resolve_timezone(config.timezone)
         now_local = self._now(timezone)
-        remaining = int((scheduled.run_at - now_local).total_seconds())
+        remaining = math.ceil((scheduled.run_at - now_local).total_seconds())
         accounts = self.account_store.load()
         enabled_accounts = sum(1 for account in accounts if account.enabled)
         return RuntimeStatusSnapshot(

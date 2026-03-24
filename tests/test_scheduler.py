@@ -6,7 +6,7 @@ from pathlib import Path
 from kugou_signer.config.paths import RepoPaths
 from kugou_signer.config.store import AccountStore, ConfigStore
 from kugou_signer.models import Account
-from kugou_signer.models import AppConfig, ScheduleSettings
+from kugou_signer.models import AppConfig, ScheduleSettings, ScheduledRun
 from kugou_signer.scheduler.engine import SchedulerController, compute_next_run, format_seconds
 from kugou_signer.timezones import resolve_timezone
 from kugou_signer.tui.log_buffer import ThreadSafeLogBuffer
@@ -65,6 +65,29 @@ class SchedulerTests(unittest.TestCase):
             self.assertEqual(snapshot.total_accounts, 2)
             self.assertIn("账号 1/2", status_line)
             self.assertIn("倒计时", status_line)
+
+    def test_controller_does_not_mark_due_when_less_than_one_second_remains(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = RepoPaths.resolve(Path(temp_dir))
+            timezone = resolve_timezone("Asia/Shanghai")
+            now = datetime(2026, 3, 25, 0, 27, 42, 800000, tzinfo=timezone)
+            controller = SchedulerController(
+                ConfigStore(paths),
+                AccountStore(paths),
+                now_provider=lambda _timezone: now,
+            )
+
+            with controller._state_lock:
+                controller._next_run = ScheduledRun(
+                    run_at=datetime(2026, 3, 25, 0, 27, 43, tzinfo=timezone),
+                    base_time="00:27",
+                    jitter_seconds=0,
+                )
+
+            snapshot = controller.status_snapshot()
+
+            self.assertEqual(snapshot.remaining_seconds, 1)
+            self.assertFalse(controller.is_due())
 
     def test_thread_safe_log_buffer_drains_in_order(self) -> None:
         buffer = ThreadSafeLogBuffer()
