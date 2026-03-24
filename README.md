@@ -151,8 +151,7 @@ tests/         单元测试
 ```
 
 ## 致谢
-     31 -
-     32 -- 感谢 [@MakcRe](https://github.com/MakcRe) 提供 API 源代码
-     33 -- 感谢 [@itfw](https://github.com/itfw) 提供二维码显示问题的解决方案
-     34 -- 感谢 [@klaas8](https://github.com/klaas8) 提供自动写入secret的方法
-     35 -- 感谢 [@develop202](https://github.com/develop202) 提供JS版完整源代码
+   - 感谢 [@MakcRe](https://github.com/MakcRe) 提供 API 源代码
+   - 感谢 [@itfw](https://github.com/itfw) 提供二维码显示问题的解决方案
+   - 感谢 [@klaas8](https://github.com/klaas8) 提供自动写入secret的方法
+   - 感谢 [@develop202](https://github.com/develop202) 提供JS版完整源代码
